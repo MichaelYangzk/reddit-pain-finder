@@ -29,6 +29,7 @@ python3 scraper.py r/productivity --min-score 5
 
 | Report | Focus | Top Finding |
 |--------|-------|-------------|
+| [DC AI Server Maintenance](./reports/dc-ai-server-maintenance-market.md) | **美国 DC 服务器维保市场** | 9% GPU 故障率 + 340K 技术人员缺口 |
 | [Agent Payment X + Moltbook](./reports/agent-payment-x-moltbook.md) | **X + Moltbook 补充研究** | CEO bullish + Builder 痛点验证 |
 | [Agent Payment Reddit Voices](./reports/agent-payment-reddit-voices.md) | **Reddit 声音 (Post-OpenClaw)** | Reddit 静默 = 先发优势 |
 | [Agent Payment Deep Dive](./reports/agent-payment-deep-dive.md) | **Agent Payment 竞争分析** | Task Escrow as a Service (Quick Win) |
