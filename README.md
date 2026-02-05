@@ -29,6 +29,7 @@ python3 scraper.py r/productivity --min-score 5
 
 | Report | Focus | Top Finding |
 |--------|-------|-------------|
+| [Agent Payment X + Moltbook](./reports/agent-payment-x-moltbook.md) | **X + Moltbook 补充研究** | CEO bullish + Builder 痛点验证 |
 | [Agent Payment Reddit Voices](./reports/agent-payment-reddit-voices.md) | **Reddit 声音 (Post-OpenClaw)** | Reddit 静默 = 先发优势 |
 | [Agent Payment Deep Dive](./reports/agent-payment-deep-dive.md) | **Agent Payment 竞争分析** | Task Escrow as a Service (Quick Win) |
 | [Post-OpenClaw AI-Native Gaps](./reports/post-openclaw-ai-native-gaps.md) | **AI-native infrastructure** | Agent Action Guarantee Layer (A+) |
