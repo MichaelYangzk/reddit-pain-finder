@@ -78,6 +78,81 @@ python3 /workspace/tools/reddit-pain-finder/scraper.py "<用户提供的 subredd
 - 调整参数：`--posts 50 --comments 300` 扫描更多
 - 降低门槛：`--min-score 1` 看更多长尾评论
 
+## 多源并行研究模式
+
+当研究涉及多个 subreddit 时，使用 Task agent 并行抓取：
+
+1. **为每个 subreddit 启动独立 Task agent** — 并行执行，互不阻塞
+2. **每个 agent 完整完成后返回** — 不要中途汇报
+3. **最后汇总所有结果** — 编译成单一报告
+
+```
+# 示例：并行研究 3 个 subreddit
+Task agent 1: scrape r/cryptocurrency → 返回 JSON
+Task agent 2: scrape r/defi → 返回 JSON
+Task agent 3: scrape r/fintech → 返回 JSON
+↓
+汇总分析 → 输出报告
+```
+
+**优势：** 并行加速，单个 source 失败不影响整体
+
+## 自主研究流水线（Self-Healing Pipeline）
+
+完全自主运行的研究流水线，自动检测失败并重试：
+
+### 架构
+
+```
+Coordinator Agent (监控 + 汇总)
+    ├── Task Agent 1: r/subreddit1 (3 fallback strategies)
+    ├── Task Agent 2: r/subreddit2 (3 fallback strategies)
+    ├── Task Agent 3: r/subreddit3 (3 fallback strategies)
+    ├── Task Agent 4: r/subreddit4 (3 fallback strategies)
+    └── Task Agent 5: r/subreddit5 (3 fallback strategies)
+            ↓
+    Aggregate successful results → Markdown report → Email
+```
+
+### 关键特性
+
+1. **每个 agent 3 层 fallback**
+   - Strategy 1: Reddit .json endpoint
+   - Strategy 2: WebSearch fallback
+   - Strategy 3: WebFetch specific threads
+
+2. **Coordinator 监控逻辑**
+   - 成功: 汇总结果到报告
+   - 部分失败 (≤2 agents): 继续，用成功的数据
+   - 大面积失败 (>2 agents): 暂停，询问用户
+
+3. **TodoWrite 全程追踪**
+   - 每个 agent 状态实时更新
+   - 失败原因记录
+   - 最终报告状态
+
+### 启动模板
+
+```
+Create an autonomous research pipeline: spawn 5 parallel Task agents
+to scrape different subreddits for pain points about [TOPIC].
+
+Each agent should attempt 3 different scraping strategies if the first fails.
+
+A coordinator agent monitors all tasks, aggregates successful results
+into a markdown report, and emails it to me.
+
+If more than 2 agents fail completely, pause and ask for guidance.
+
+Use TodoWrite to track progress across all agents.
+```
+
+### 适用场景
+
+- 大规模痛点研究（5+ subreddits）
+- 需要 overnight 运行的深度调研
+- Reddit 限流严重时的弹性抓取
+
 ## 注意事项
 
 - Reddit 对未认证请求限流约 1 req/sec，脚本已内置延迟
