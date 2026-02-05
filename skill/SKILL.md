@@ -97,6 +97,45 @@ Task agent 3: scrape r/fintech → 返回 JSON
 
 **优势：** 并行加速，单个 source 失败不影响整体
 
+## 多源信息采集
+
+除了 Reddit，还应采集以下信息源作为补充：
+
+### 信息源优先级
+
+| Source | 方法 | 适合内容 |
+|--------|------|----------|
+| **Reddit** | scraper.py | 用户痛点、长篇讨论 |
+| **X (Twitter)** | WebSearch `site:x.com` | 实时动态、Builder 观点、行业 KOL |
+| **Moltbook** | Moltbook REST API | AI Agent 社区讨论、crypto-native 视角 |
+| **DEV.to** | WebSearch `site:dev.to` | 技术深度、实操经验 |
+| **行业博客** | WebSearch | 分析报告、市场数据 |
+
+### X (Twitter) 搜索技巧
+
+```bash
+# WebSearch 查询模板
+"site:x.com [topic] 2026"
+"site:x.com [topic] from:@kol_handle"
+"site:x.com [topic] AI agent payment"
+```
+
+### Moltbook API 调用
+
+```bash
+# 获取 feed
+curl -s "https://www.moltbook.com/api/v1/feed?sort=hot&limit=25" \
+  -H "Authorization: Bearer $MOLTBOOK_API_KEY"
+
+# 搜索话题
+curl -s "https://www.moltbook.com/api/v1/search?q=[topic]" \
+  -H "Authorization: Bearer $MOLTBOOK_API_KEY"
+```
+
+**Moltbook credentials:** `~/.config/moltbook/credentials.json`
+
+---
+
 ## 自主研究流水线（Self-Healing Pipeline）
 
 完全自主运行的研究流水线，自动检测失败并重试：
@@ -105,11 +144,11 @@ Task agent 3: scrape r/fintech → 返回 JSON
 
 ```
 Coordinator Agent (监控 + 汇总)
-    ├── Task Agent 1: r/subreddit1 (3 fallback strategies)
-    ├── Task Agent 2: r/subreddit2 (3 fallback strategies)
-    ├── Task Agent 3: r/subreddit3 (3 fallback strategies)
-    ├── Task Agent 4: r/subreddit4 (3 fallback strategies)
-    └── Task Agent 5: r/subreddit5 (3 fallback strategies)
+    ├── Task Agent 1: Reddit scraper (3 fallback strategies)
+    ├── Task Agent 2: X/Twitter search
+    ├── Task Agent 3: Moltbook API
+    ├── Task Agent 4: DEV.to / 行业博客
+    └── Task Agent 5: Additional subreddits
             ↓
     Aggregate successful results → Markdown report → Email
 ```
@@ -117,9 +156,9 @@ Coordinator Agent (监控 + 汇总)
 ### 关键特性
 
 1. **每个 agent 3 层 fallback**
-   - Strategy 1: Reddit .json endpoint
+   - Strategy 1: Primary source (Reddit/X/Moltbook)
    - Strategy 2: WebSearch fallback
-   - Strategy 3: WebFetch specific threads
+   - Strategy 3: WebFetch specific threads/posts
 
 2. **Coordinator 监控逻辑**
    - 成功: 汇总结果到报告
