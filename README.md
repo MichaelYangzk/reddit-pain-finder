@@ -29,6 +29,7 @@ python3 scraper.py r/productivity --min-score 5
 
 | Report | Focus | Top Finding |
 |--------|-------|-------------|
+| [Agent Payment Deep Dive](./reports/agent-payment-deep-dive.md) | **Agent Payment 竞争分析** | Task Escrow as a Service (Quick Win) |
 | [Post-OpenClaw AI-Native Gaps](./reports/post-openclaw-ai-native-gaps.md) | **AI-native infrastructure** | Agent Action Guarantee Layer (A+) |
 | [AI x Daily Life Pain Points](./reports/ai-daily-life-painpoints-report.md) | AI meets everyday life | AI Life Admin Agent ($50B+ TAM) |
 | [AI Agent Native Apps](./reports/ai-agent-painpoints-report.md) | AI agent ecosystem | Multi-agent orchestration tools |
