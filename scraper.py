@@ -1,23 +1,15 @@
 #!/usr/bin/env python3
 """
-Reddit Pain Finder v2.0 - Scrape Reddit for user pain points & startup ideas.
-
-Features:
-    - Pain signal classification (frustration, WTP, tool-switch, solution requests)
-    - Pain scoring per comment (0-100 composite score)
-    - Mirror fallback rotation (redlib mirrors when Reddit rate-limits)
-    - RSS fallback when .json fails
+Reddit Pain Finder - Scrape Reddit .json for user pain points & startup ideas.
 
 Usage:
     python3 scraper.py <subreddit_name_or_url> [--posts N] [--comments N] [--min-score N]
-    python3 scraper.py SaaS --posts 30 --comments 200 --score-pain
 
 Examples:
     python3 scraper.py smallbusiness
     python3 scraper.py https://www.reddit.com/r/SaaS/
     python3 scraper.py https://www.reddit.com/r/webdev/comments/abc123/some_post/
     python3 scraper.py SaaS --posts 30 --comments 200 --min-score 5
-    python3 scraper.py r/startups --score-pain
 """
 
 import json
@@ -29,73 +21,15 @@ import urllib.request
 import urllib.error
 
 HEADERS = {
-    "User-Agent": "RedditPainFinder/2.0 (research tool; contact: research@mkyang.ai)"
+    "User-Agent": "RedditPainFinder/1.0 (research tool; contact: research@mkyang.ai)"
 }
 
-# --- Pain Signal Detection Patterns ---
-# Based on SubredditSignals 7-Signal System + Reddinbox WTP detection
-
-PAIN_PATTERNS = {
-    "frustration": [
-        r"(?i)\b(hate|terrible|awful|worst|sucks?|broken|useless|garbage|nightmare|disaster)\b",
-        r"(?i)\b(frustrat|annoy|infuriat|maddening|ridiculous|unacceptable)\w*\b",
-        r"(?i)(why is it so hard|can'?t believe|sick of|tired of|fed up|give up|losing my mind)",
-        r"(?i)(waste of time|waste of money|complete mess|what a joke|driving me crazy)",
-    ],
-    "solution_request": [
-        r"(?i)(is there a tool|any(one|body) know.{0,20}(tool|app|service|solution))",
-        r"(?i)(looking for|searching for|need.{0,15}(tool|app|service|solution|way to))",
-        r"(?i)(how do (you|I|we)|what('s| is) the best way|recommend.{0,15}(tool|app|service))",
-        r"(?i)(does (anyone|anybody).{0,20}(recommend|suggest|know))",
-        r"(?i)(wish there was|if only there was|someone should build)",
-    ],
-    "tool_switch": [
-        r"(?i)(switch(ing|ed)? from|migrat(ing|ed)? from|mov(ing|ed)? away from|replac(ing|ed))",
-        r"(?i)(alternative(s)? to|instead of|better than|compared to)",
-        r"(?i)(left|leaving|ditch(ing|ed)?|abandon(ing|ed)?|cancel(l?ed|l?ing)?).{0,30}(subscription|plan|tool|app|service)",
-        r"(?i)(looking to replace|need.{0,10}replacement)",
-    ],
-    "willingness_to_pay": [
-        r"(?i)(willing to pay|would pay|gladly pay|happy to pay|shut up and take my money)",
-        r"(?i)(pay \$?\d+|worth \$?\d+|\$\d+.{0,10}(per|a|/)\s*(month|year|mo|yr))",
-        r"(?i)(current(ly)? pay(ing)?|spend(ing)?.{0,15}\$?\d+|budget.{0,15}\$?\d+)",
-        r"(?i)(take my money|instant buy|day.one (buy|purchase|subscriber))",
-        r"(?i)(worth (the|every|it)|money well spent|best.{0,10}(investment|purchase))",
-    ],
-    "unmet_need": [
-        r"(?i)(i wish|if only|it would be great if|would love (to|it|if))",
-        r"(?i)(missing feature|doesn'?t (support|have|do)|no way to|can'?t even)",
-        r"(?i)(should (have|be able|support)|why (can'?t|doesn'?t|isn'?t))",
-        r"(?i)(deal ?breaker|blocker|showstopper|non.?starter)",
-    ],
-}
-
-# Emotional intensity keywords (weighted)
-INTENSITY_WORDS = {
-    "extreme": (["hate", "nightmare", "disaster", "worst", "impossible", "furious",
-                 "livid", "outraged", "broken", "scam"], 10),
-    "high":    (["terrible", "awful", "useless", "frustrated", "angry", "unacceptable",
-                 "ridiculous", "pathetic", "garbage", "trash"], 7),
-    "medium":  (["annoying", "disappointing", "mediocre", "clunky", "confusing",
-                 "slow", "buggy", "unreliable", "awkward", "tedious"], 4),
-    "low":     (["wish", "hope", "prefer", "slightly", "minor", "small",
-                 "okay", "decent", "fine"], 2),
-}
-
-# --- Mirror Fallback Rotation ---
-REDDIT_MIRRORS = [
-    "https://www.reddit.com",
-    "https://old.reddit.com",
-]
-
-
-def fetch_json(url, retry_mirrors=True):
-    """Fetch JSON from a Reddit URL with mirror fallback."""
-    original_url = url
-
+def fetch_json(url):
+    """Fetch JSON from a Reddit URL with rate limiting."""
     if not url.endswith(".json"):
         url = url.rstrip("/") + "/.json"
 
+    # Add raw_json=1 to get unescaped HTML entities
     separator = "&" if "?" in url else "?"
     url += f"{separator}raw_json=1"
 
@@ -104,31 +38,9 @@ def fetch_json(url, retry_mirrors=True):
         with urllib.request.urlopen(req, timeout=15) as resp:
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
-        if e.code == 429 and retry_mirrors:
-            sys.stderr.write(f"[WARN] 429 on {url}, trying mirrors...\n")
-            for mirror in REDDIT_MIRRORS[1:]:
-                try:
-                    mirror_url = original_url.replace("https://www.reddit.com", mirror)
-                    time.sleep(2)
-                    return fetch_json(mirror_url, retry_mirrors=False)
-                except Exception:
-                    continue
-            sys.stderr.write("[ERROR] All mirrors exhausted.\n")
-            print(json.dumps({"error": "Rate limited by Reddit. All mirrors failed. Wait 60s and retry."}))
-            sys.exit(1)
         if e.code == 429:
-            raise
-        raise
-    except urllib.error.URLError as e:
-        if retry_mirrors:
-            sys.stderr.write(f"[WARN] URLError on {url}: {e}, trying mirrors...\n")
-            for mirror in REDDIT_MIRRORS[1:]:
-                try:
-                    mirror_url = original_url.replace("https://www.reddit.com", mirror)
-                    time.sleep(2)
-                    return fetch_json(mirror_url, retry_mirrors=False)
-                except Exception:
-                    continue
+            print(json.dumps({"error": "Rate limited by Reddit. Wait 60s and retry."}))
+            sys.exit(1)
         raise
 
 
@@ -201,69 +113,6 @@ def extract_comments(comment_data, depth=0, min_score=1):
             pass
 
     return comments
-
-
-def classify_pain_signals(text):
-    """Classify a comment's pain signals using pattern matching."""
-    signals = {}
-    text_lower = text.lower()
-
-    for signal_type, patterns in PAIN_PATTERNS.items():
-        matches = []
-        for pattern in patterns:
-            found = re.findall(pattern, text)
-            matches.extend(found)
-        if matches:
-            signals[signal_type] = len(matches)
-
-    return signals
-
-
-def score_pain_intensity(text):
-    """Score emotional intensity of text (0-10)."""
-    text_lower = text.lower()
-    max_intensity = 0
-
-    for level, (words, score) in INTENSITY_WORDS.items():
-        for word in words:
-            if word in text_lower:
-                max_intensity = max(max_intensity, score)
-
-    return max_intensity
-
-
-def compute_pain_score(comment):
-    """Compute composite pain score (0-100) for a comment.
-
-    Formula: (signal_breadth * 25) + (intensity * 5) + (engagement * 10)
-    - signal_breadth: number of distinct signal types (0-4, capped)
-    - intensity: emotional intensity (0-10)
-    - engagement: log-scaled reddit score (0-5)
-    """
-    import math
-
-    signals = comment.get("pain_signals", {})
-    intensity = comment.get("pain_intensity", 0)
-    reddit_score = comment.get("score", 0)
-
-    # Signal breadth: how many different signal categories triggered (max 4)
-    signal_breadth = min(len(signals), 4)
-
-    # Engagement: log-scaled reddit score (0-5)
-    engagement = min(math.log2(max(reddit_score, 1) + 1), 5)
-
-    # Composite score
-    score = (signal_breadth * 25) + (intensity * 5) + (engagement * 10)
-    return min(round(score, 1), 100)
-
-
-def enrich_comment_with_pain(comment):
-    """Add pain classification and scoring to a comment dict."""
-    body = comment.get("body", "")
-    comment["pain_signals"] = classify_pain_signals(body)
-    comment["pain_intensity"] = score_pain_intensity(body)
-    comment["pain_score"] = compute_pain_score(comment)
-    return comment
 
 
 def scrape_post(url, min_score=1):
@@ -346,58 +195,12 @@ def scrape_subreddit(name, max_posts=25, max_comments=150, min_score=2):
     return results
 
 
-def generate_pain_summary(result):
-    """Generate a pain analysis summary from scored comments."""
-    comments = result.get("top_comments", [])
-    if not comments:
-        comments = []
-        for post in result.get("posts", []):
-            comments.extend(post.get("comments", []))
-
-    # Only include comments with pain signals
-    pain_comments = [c for c in comments if c.get("pain_score", 0) > 0]
-
-    if not pain_comments:
-        return {"total_pain_signals": 0, "signal_distribution": {}, "top_pain_comments": []}
-
-    # Aggregate signal distribution
-    signal_dist = {}
-    for c in pain_comments:
-        for sig_type in c.get("pain_signals", {}):
-            signal_dist[sig_type] = signal_dist.get(sig_type, 0) + 1
-
-    # Sort by pain score
-    pain_comments.sort(key=lambda c: c.get("pain_score", 0), reverse=True)
-
-    # Top 20 highest-pain comments
-    top_pain = []
-    for c in pain_comments[:20]:
-        top_pain.append({
-            "body": c["body"][:500],
-            "score": c["score"],
-            "pain_score": c["pain_score"],
-            "pain_signals": c["pain_signals"],
-            "pain_intensity": c["pain_intensity"],
-        })
-
-    return {
-        "total_pain_signals": len(pain_comments),
-        "total_comments_analyzed": len(comments),
-        "pain_ratio": round(len(pain_comments) / max(len(comments), 1), 3),
-        "signal_distribution": signal_dist,
-        "avg_pain_score": round(sum(c["pain_score"] for c in pain_comments) / max(len(pain_comments), 1), 1),
-        "top_pain_comments": top_pain,
-    }
-
-
 def main():
-    parser = argparse.ArgumentParser(description="Reddit Pain Finder v2 - scrape Reddit for user pain points")
+    parser = argparse.ArgumentParser(description="Reddit Pain Finder - scrape Reddit for user pain points")
     parser.add_argument("target", help="Subreddit name, r/name, or full Reddit URL")
     parser.add_argument("--posts", type=int, default=25, help="Max posts to scan (default: 25)")
     parser.add_argument("--comments", type=int, default=150, help="Max top comments to return (default: 150)")
     parser.add_argument("--min-score", type=int, default=2, help="Min comment score to include (default: 2)")
-    parser.add_argument("--score-pain", action="store_true",
-                        help="Enable pain signal detection & scoring (adds pain_score, pain_signals, pain_intensity to each comment)")
 
     args = parser.parse_args()
 
@@ -421,22 +224,6 @@ def main():
     if result is None:
         print(json.dumps({"error": "Failed to fetch data from Reddit"}))
         sys.exit(1)
-
-    # Enrich with pain scoring if requested
-    if args.score_pain:
-        sys.stderr.write("[INFO] Scoring pain signals...\n")
-
-        # Score all comments in posts
-        for post in result.get("posts", []):
-            post["comments"] = [enrich_comment_with_pain(c) for c in post.get("comments", [])]
-
-        # Score top_comments
-        if "top_comments" in result:
-            result["top_comments"] = [enrich_comment_with_pain(c) for c in result["top_comments"]]
-
-        # Add pain summary
-        result["pain_summary"] = generate_pain_summary(result)
-        sys.stderr.write(f"[INFO] Pain signals found: {result['pain_summary']['total_pain_signals']}\n")
 
     # Output JSON to stdout
     print(json.dumps(result, ensure_ascii=False, indent=2))
